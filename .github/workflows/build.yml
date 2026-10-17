@@ -5,9 +5,6 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -53,57 +50,22 @@ jobs:
     - name: Build with Gradle
       id: gradle_build
       run: |
-        # 🎯 精准打击：直接编译 manager 模块的 Release 包
-        ./gradlew :manager:assembleRelease -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=4g" 2>&1 | tee build_output.log
+        ./gradlew :manager:assembleRelease -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=4g"
       env:
         KEYSTORE_PATH: ${{ github.workspace }}/keystore-dir/yuehong_my_release.jks
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-    - name: Capture Build Errors and Source Code
-      if: failure() && steps.gradle_build.outcome == 'failure'
-      run: |
-        mkdir -p ERRORBUILD
-        LOG_FILE="ERRORBUILD/latest_error.log"
-        grep -E "^e: file:" build_output.log > temp_errors.txt || true
-        if [ -s temp_errors.txt ]; then
-          while IFS= read -r line; do
-            echo "$line" >> $LOG_FILE
-            file_path=$(echo "$line" | sed -n 's|.*file:///home/runner/work/[^/]*/[^/]*/\(.*\):.*|\1|p')
-            line_num=$(echo "$line" | sed -n 's|.*:\([0-9]*\):.*|\1|p')
-            if [ -n "$file_path" ] && [ -n "$line_num" ]; then
-              start_line=$((line_num > 2 ? line_num - 2 : 1))
-              end_line=$((line_num + 2))
-              sed -n "${start_line},${end_line}p" "$file_path" >> $LOG_FILE
-            fi
-          done < temp_errors.txt
-        else
-          tail -n 50 build_output.log >> $LOG_FILE
-        fi
-        git config --global user.name "GitHub Actions Bot"
-        git config --global user.email "actions@github.com"
-        git add ERRORBUILD/latest_error.log
-        git commit -m "ci: 自动记录编译失败日志与源码 [skip ci]" || echo "No changes to commit"
-        git push
-
-    # 👇 精准拷贝到 BUILDAPK 文件夹 👇
-    - name: Commit APK to BUILDAPK Folder
+    - name: Prepare APK for Upload
       if: success()
       run: |
-        mkdir -p BUILDAPK
-        # 去 manager 模块的 build 目录下找，并且把文件名里的中文和空格都处理好
-        find manager/build -type f -name "*.apk" -exec cp {} BUILDAPK/ \;
-        
-        if [ "$(ls -A BUILDAPK)" ]; then
-          echo "✅ 成功找到 APK，准备推送到仓库！"
-          git config --global user.name "GitHub Actions Bot"
-          git config --global user.email "actions@github.com"
-          git add -f BUILDAPK/
-          git commit -m "ci: 成功打包 APK 到 BUILDAPK 目录 [skip ci]" || echo "No new APK"
-          git push
-        else
-          echo "❌ 还是没找到 APK，可能 assembleRelease 没生成包。"
-          echo "====== 搜索目录 ======"
-          find manager/build -type f | head -n 50
-        fi
+        mkdir -p output
+        find manager/build -type f -name "*.apk" -exec cp {} output/app-release.apk \;
+
+    - name: Upload APK
+      if: success()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Yuehong-Mod-APK
+        path: output/app-release.apk
