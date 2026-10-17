@@ -5,6 +5,9 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,14 +33,11 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    # 👇👇👇 这就是咱们新加的逻辑：用 Python 安全注入 debuggable 👇👇👇
     - name: Inject Android Debuggable
       run: |
         python3 -c "
         import glob
         import xml.etree.ElementTree as ET
-
-        # 寻找所有模块下的 AndroidManifest.xml
         for file in glob.glob('*/src/main/AndroidManifest.xml'):
             try:
                 ET.register_namespace('android', 'http://schemas.android.com/apk/res/android')
@@ -47,18 +47,58 @@ jobs:
                 if app is not None:
                     app.set('{http://schemas.android.com/apk/res/android}debuggable', 'true')
                     tree.write(file, encoding='utf-8', xml_declaration=True)
-                    print(f'✅ 成功注入 debuggable: {file}')
-            except Exception as e:
-                print(f'❌ 注入失败 {file}: {e}')
+            except Exception as e: pass
         "
 
     - name: Build with Gradle
-      run: ./gradlew assembleRelease -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=4g"
+      id: gradle_build
+      run: |
+        ./gradlew assembleRelease -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=4g" 2>&1 | tee build_output.log
       env:
         KEYSTORE_PATH: ${{ github.workspace }}/keystore-dir/yuehong_my_release.jks
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
         KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+    - name: Capture Build Errors and Source Code
+      if: failure() && steps.gradle_build.outcome == 'failure'
+      run: |
+        mkdir -p ERRORBUILD
+        LOG_FILE="ERRORBUILD/latest_error.log"
+        echo "==================================================" > $LOG_FILE
+        echo "Build Failed at: $(date)" >> $LOG_FILE
+        echo "==================================================" >> $LOG_FILE
+        
+        grep -E "^e: file:" build_output.log > temp_errors.txt || true
+        
+        if [ -s temp_errors.txt ]; then
+          while IFS= read -r line; do
+            echo -e "\n[错误信息]" >> $LOG_FILE
+            echo "$line" >> $LOG_FILE
+            
+            file_path=$(echo "$line" | sed -n 's|.*file:///home/runner/work/[^/]*/[^/]*/\(.*\):.*|\1|p')
+            line_num=$(echo "$line" | sed -n 's|.*:\([0-9]*\):.*|\1|p')
+            
+            if [ -n "$file_path" ] && [ -n "$line_num" ]; then
+              echo -e "\n[源码位置]" >> $LOG_FILE
+              echo "$file_path 第 $line_num 行" >> $LOG_FILE
+              echo -e "\n[源码内容]" >> $LOG_FILE
+              start_line=$((line_num > 2 ? line_num - 2 : 1))
+              end_line=$((line_num + 2))
+              sed -n "${start_line},${end_line}p" "$file_path" >> $LOG_FILE
+            fi
+            echo "--------------------------------------------------" >> $LOG_FILE
+          done < temp_errors.txt
+        else
+          echo "未找到 'e:' 开头的源码报错，请检查其他配置。" >> $LOG_FILE
+          tail -n 50 build_output.log >> $LOG_FILE
+        fi
+        
+        git config --global user.name "GitHub Actions Bot"
+        git config --global user.email "actions@github.com"
+        git add ERRORBUILD/latest_error.log
+        git commit -m "ci: 自动记录编译失败日志与源码 [skip ci]" || echo "No changes to commit"
+        git push
 
     - name: Upload APK
       uses: actions/upload-artifact@v4
