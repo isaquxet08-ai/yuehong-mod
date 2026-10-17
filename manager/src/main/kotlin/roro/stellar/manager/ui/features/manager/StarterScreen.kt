@@ -1579,3 +1579,14 @@ internal class StarterViewModelFactory(
         ) as T
     }
 }
+
+// 手动追加：Android 10 专用连接函数
+fun connectAndroid10Adb(context: android.content.Context) {
+    try {
+        roro.stellar.manager.adb.UsbAdbClient.executeRawService("tcpip:5555")
+        roro.stellar.manager.adb.UsbAdbClient.executeRawService("connect:127.0.0.1:5555")
+        // 提示成功
+    } catch (e: Exception) {
+        // 提示失败
+    }
+}

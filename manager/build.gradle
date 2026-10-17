@@ -27,12 +27,12 @@ android {
         // 保留默认英文及产品使用的中文资源，移除依赖库中未使用的几十套翻译。
         resourceConfigurations += ['en', 'zh-rCN', 'zh-rHK', 'zh-rTW']
 
-        externalNativeBuild {
-            cmake {
-                arguments '-DANDROID_STL=none'
-                abiFilters 'arm64-v8a'
-            }
-        }
+//        externalNativeBuild {
+//            cmake {
+//                arguments '-DANDROID_STL=none'
+//                abiFilters 'arm64-v8a'
+//            }
+//        }
     }
 
     buildFeatures {
@@ -76,12 +76,12 @@ android {
         }
     }
 
-    externalNativeBuild {
-        cmake {
-            path 'src/main/jni/CMakeLists.txt'
-            version = "3.22.1+"
-        }
-    }
+//    externalNativeBuild {
+//        cmake {
+//            path 'src/main/jni/CMakeLists.txt'
+//            version = "3.22.1+"
+//        }
+//    }
 
     packagingOptions {
         resources {
