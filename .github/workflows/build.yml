@@ -104,4 +104,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Yuehong-Mod-Release
-        path: "**/build/outputs/apk/release/*.apk"
+        path: "**/*.apk"  # 👈 这里换成了全盘搜索所有的 apk，绝对跑不掉
