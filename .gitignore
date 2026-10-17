@@ -56,3 +56,16 @@ AGENTS.md
 .project_context/
 .claude/
 .code-graph/
+
+# ==========================================
+# 开发者自定义：忽略所有私密文件及密钥
+# ==========================================
+*.jks
+*.keystore
+*.p12
+*.pem
+*.key
+
+# 忽略刚才手滑混进去的私钥文件夹
+MGCE-Keystore/
+keystore-dir/
