@@ -1,0 +1,45 @@
+name: Build Yuehong Mod APK
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Checkout Private Keystore
+      uses: actions/checkout@v4
+      with:
+        repository: isaquxet08-ai/MGCE-Keystore
+        token: ${{ secrets.KS_READ_TOKEN }}
+        path: keystore-dir
+
+    - name: Set up JDK 17
+      uses: actions/setup-java@v4
+      with:
+        java-version: '17'
+        distribution: 'temurin'
+        cache: gradle
+
+    - name: Grant execute permission for gradlew
+      run: chmod +x gradlew
+
+    - name: Build with Gradle
+      run: ./gradlew assembleRelease
+      env:
+        KEYSTORE_PATH: ${{ github.workspace }}/keystore-dir/yuehong_my_release.jks
+        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
+        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+
+    - name: Upload APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: Yuehong-Mod-Release
+        path: "**/build/outputs/apk/release/*.apk"
