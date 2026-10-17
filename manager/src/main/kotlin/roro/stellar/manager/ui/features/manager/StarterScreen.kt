@@ -1210,20 +1210,7 @@ internal class StarterViewModel(
                             startAdbSteps()
                         } else {
                             detectedPort = discoveredPort
-                            // [Android 10 向下兼容补丁] 自动注入
-if (android.os.Build.VERSION.SDK_INT < 30) {
-    try {
-        // 安卓10及以下直接走本地端口，不需要配对码
-        roro.stellar.manager.adb.UsbAdbClient.service("tcpip:5555")
-        roro.stellar.manager.adb.UsbAdbClient.service("connect:127.0.0.1:5555")
-        updateStep(1, StepStatus.COMPLETED, "Android 10 已通过本地端口 5555 连接")
-    } catch (e: Exception) {
-        updateStep(1, StepStatus.ERROR, "本地连接失败: ${e.message}")
-    }
-} else {
-    // 安卓11及以上走原有的配对逻辑
-    updateStep(1, StepStatus.WARNING, context.getString(R.string.need_pairing))
-}
+                            updateStep(1, StepStatus.WARNING, context.getString(R.string.need_pairing))
                             delay(300)
                             showPairingSteps()
                         }
@@ -1596,8 +1583,8 @@ internal class StarterViewModelFactory(
 // 手动追加：Android 10 专用连接函数
 fun connectAndroid10Adb(context: android.content.Context) {
     try {
-        roro.stellar.manager.adb.UsbAdbClient.service("tcpip:5555")
-        roro.stellar.manager.adb.UsbAdbClient.service("connect:127.0.0.1:5555")
+        roro.stellar.manager.adb.UsbAdbClient.executeRawService("tcpip:5555")
+        roro.stellar.manager.adb.UsbAdbClient.executeRawService("connect:127.0.0.1:5555")
         // 提示成功
     } catch (e: Exception) {
         // 提示失败
