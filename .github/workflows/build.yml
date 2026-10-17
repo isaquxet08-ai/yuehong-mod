@@ -1,4 +1,4 @@
-name: Build Yuehong Mod APK
+name: Build Yuehong Debug APK
 
 on:
   push:
@@ -16,6 +16,7 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
+    # 原作者代码有死逻辑，还是把私钥拉下来备用
     - name: Checkout Private Keystore
       uses: actions/checkout@v4
       with:
@@ -33,64 +34,41 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    # 🔨 1. 生成 Gradle 需要的 keystore.properties，强制它使用你的签名
-    - name: Generate keystore.properties
-      run: |
-        echo "storeFile=keystore-dir/yuehong_my_release.jks" > keystore.properties
-        echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> keystore.properties
-        echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> keystore.properties
-        echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> keystore.properties
-
-    # 🔨 2. 注入 Debuggable（为了你的 run-as 需求）
-    - name: Inject Android Debuggable
-      run: |
-        python3 -c "
-        import glob
-        import xml.etree.ElementTree as ET
-        for file in glob.glob('*/src/main/AndroidManifest.xml'):
-            try:
-                ET.register_namespace('android', 'http://schemas.android.com/apk/res/android')
-                tree = ET.parse(file)
-                root = tree.getroot()
-                app = root.find('application')
-                if app is not None:
-                    app.set('{http://schemas.android.com/apk/res/android}debuggable', 'true')
-                    tree.write(file, encoding='utf-8', xml_declaration=True)
-            except Exception as e: pass
-        "
-
-    # 🔨 3. 执行编译
-    - name: Build with Gradle
+    # 编译 Debug 包（不需要注入 debuggable，本身就自带）
+    - name: Build Debug APK
       id: gradle_build
       run: |
-        ./gradlew :manager:assembleRelease -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=4g"
+        ./gradlew :manager:assembleDebug -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=4g" 2>&1 | tee build_output.log
 
-    # 🔨 4. 验明正身：验证 APK 签名是不是你的！
-    - name: Verify APK Signature
-      if: success()
+    # 如果编译失败，自动抓取错误日志并推回仓库
+    - name: Capture Build Errors
+      if: failure() && steps.gradle_build.outcome == 'failure'
       run: |
-        # 找到原作者藏在 out/apk 里的文件
-        APK_FILE=$(find out/apk -name "*.apk" | head -n 1)
-        if [ -z "$APK_FILE" ]; then
-          echo "❌ 没找到 APK！"
-          exit 1
+        mkdir -p ERRORBUILD
+        LOG_FILE="ERRORBUILD/latest_error.log"
+        grep -E "^e: file:" build_output.log > temp_errors.txt || true
+        if [ -s temp_errors.txt ]; then
+          while IFS= read -r line; do
+            echo "$line" >> $LOG_FILE
+            file_path=$(echo "$line" | sed -n 's|.*file:///home/runner/work/[^/]*/[^/]*/\(.*\):.*|\1|p')
+            line_num=$(echo "$line" | sed -n 's|.*:\([0-9]*\):.*|\1|p')
+            if [ -n "$file_path" ] && [ -n "$line_num" ]; then
+              sed -n "$((line_num > 2 ? line_num - 2 : 1)),$((line_num + 2))p" "$file_path" >> $LOG_FILE
+            fi
+          done < temp_errors.txt
+        else
+          tail -n 50 build_output.log >> $LOG_FILE
         fi
-        
-        echo "找到 APK: $APK_FILE"
-        
-        # 找到 Android SDK 里自带的最新的 apksigner 工具
-        BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
-        APKSIGNER="$BUILD_TOOLS/apksigner"
-        
-        echo "============ 正在验证 APK 签名信息 ============"
-        # 打印签名详情，证明这是你的密钥
-        $APKSIGNER verify --print-certs "$APK_FILE"
-        echo "==============================================="
+        git config --global user.name "GitHub Actions Bot"
+        git config --global user.email "actions@github.com"
+        git add ERRORBUILD/latest_error.log
+        git commit -m "ci: 自动记录编译失败日志 [skip ci]" || echo "No changes"
+        git push
 
-    # 🔨 5. 上传官方通道，供你下载
-    - name: Upload APK
+    # 成功的话，全盘搜索 Debug 包并上传附件
+    - name: Upload Debug APK
       if: success()
       uses: actions/upload-artifact@v4
       with:
-        name: Yuehong-Mod-APK
-        path: out/apk/*.apk
+        name: Yuehong-Debug-APK
+        path: "**/build/outputs/apk/debug/*.apk"
