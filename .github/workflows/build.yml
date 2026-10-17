@@ -53,7 +53,7 @@ jobs:
         "
 
     - name: Build with Gradle
-      run: ./gradlew assembleRelease
+      run: ./gradlew assembleRelease -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=4g"
       env:
         KEYSTORE_PATH: ${{ github.workspace }}/keystore-dir/yuehong_my_release.jks
         KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
