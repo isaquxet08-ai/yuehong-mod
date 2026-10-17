@@ -5,6 +5,9 @@ on:
     branches: [ "main" ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -30,6 +33,15 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
+    # 🔨 1. 生成 Gradle 需要的 keystore.properties，强制它使用你的签名
+    - name: Generate keystore.properties
+      run: |
+        echo "storeFile=keystore-dir/yuehong_my_release.jks" > keystore.properties
+        echo "storePassword=${{ secrets.KEYSTORE_PASSWORD }}" >> keystore.properties
+        echo "keyAlias=${{ secrets.KEY_ALIAS }}" >> keystore.properties
+        echo "keyPassword=${{ secrets.KEY_PASSWORD }}" >> keystore.properties
+
+    # 🔨 2. 注入 Debuggable（为了你的 run-as 需求）
     - name: Inject Android Debuggable
       run: |
         python3 -c "
@@ -47,25 +59,38 @@ jobs:
             except Exception as e: pass
         "
 
+    # 🔨 3. 执行编译
     - name: Build with Gradle
       id: gradle_build
       run: |
         ./gradlew :manager:assembleRelease -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=4g"
-      env:
-        KEYSTORE_PATH: ${{ github.workspace }}/keystore-dir/yuehong_my_release.jks
-        KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
-        KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
-        KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
 
-    - name: Prepare APK for Upload
+    # 🔨 4. 验明正身：验证 APK 签名是不是你的！
+    - name: Verify APK Signature
       if: success()
       run: |
-        mkdir -p output
-        find manager/build -type f -name "*.apk" -exec cp {} output/app-release.apk \;
+        # 找到原作者藏在 out/apk 里的文件
+        APK_FILE=$(find out/apk -name "*.apk" | head -n 1)
+        if [ -z "$APK_FILE" ]; then
+          echo "❌ 没找到 APK！"
+          exit 1
+        fi
+        
+        echo "找到 APK: $APK_FILE"
+        
+        # 找到 Android SDK 里自带的最新的 apksigner 工具
+        BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+        APKSIGNER="$BUILD_TOOLS/apksigner"
+        
+        echo "============ 正在验证 APK 签名信息 ============"
+        # 打印签名详情，证明这是你的密钥
+        $APKSIGNER verify --print-certs "$APK_FILE"
+        echo "==============================================="
 
+    # 🔨 5. 上传官方通道，供你下载
     - name: Upload APK
       if: success()
       uses: actions/upload-artifact@v4
       with:
         name: Yuehong-Mod-APK
-        path: output/app-release.apk
+        path: out/apk/*.apk
