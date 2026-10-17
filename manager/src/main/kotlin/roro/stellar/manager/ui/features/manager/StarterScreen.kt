@@ -927,7 +927,7 @@ internal class StarterViewModel(
 
     private val adbWirelessHelper = AdbWirelessHelper()
     private var adbMdns: AdbMdns? = null
-    private var detectedPort: Int = 0
+    private var detectedPort: Int = 5555
 
     private enum class PairingPhase { NONE, ENABLE_WIRELESS, PAIRING }
     private var pairingPhase = PairingPhase.NONE
