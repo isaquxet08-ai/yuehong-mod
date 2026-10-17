@@ -67,35 +67,16 @@ class HttpStartupVerificationApi(context: Context) {
     private val appContext = context.applicationContext
 
     suspend fun verifyStartup(): StartupVerificationResult = withContext(Dispatchers.IO) {
-        val endpoint = BuildConfig.SERVER_PROTOCOL_V2_ENDPOINT.trim()
-        val moduleId = BuildConfig.SERVER_MODULE_ID.trim()
-        val serverPublicKey = BuildConfig.SERVER_PROTOCOL_V2_PUBLIC_KEY.trim()
-        val serverKeyId = BuildConfig.SERVER_PROTOCOL_V2_KEY_ID.trim()
-        if (endpoint.isEmpty() || moduleId.isEmpty() ||
-            serverPublicKey.isEmpty() || serverKeyId.isEmpty()) {
-            return@withContext StartupVerificationResult.EndpointNotConfigured
-        }
-
-        runCatching {
-            OfficialAppSignature.requireOfficial(appContext)
-            val proof = createProof("bootstrap", "")
-            val response = postForm(
-                appendAction(endpoint, "bootstrap_v2"),
-                proof.toForm(moduleId),
+        // 🛠️ 绕过所有网络和加密验签，直接返回成功
+        return@withContext StartupVerificationResult.Success(
+            StartupVerification(
+                AnnouncementInfo("v1.5.4", "破解版", "验证已放行"),
+                9999,
+                true,
+                "ok",
+                0
             )
-            if (response.code !in 200..299) {
-                throw VerificationException(httpFailureMessage(response.code))
-            }
-            parseSignedStartupResponse(
-                response.body,
-                proof,
-                moduleId,
-                serverPublicKey,
-                serverKeyId,
-            )
-        }.getOrElse { error ->
-            StartupVerificationResult.Failure(error.toSafeMessage())
-        }
+        )
     }
 
     suspend fun requestChannelAuthorization(): ChannelVerificationResult = withContext(Dispatchers.IO) {

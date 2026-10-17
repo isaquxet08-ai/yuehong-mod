@@ -18,9 +18,7 @@ internal object OfficialAppSignature {
     )
 
     fun requireOfficial(context: Context) {
-        if (context.packageName != BuildConfig.APPLICATION_ID || !isOfficial(context)) {
-            throw SecurityException("检测到非官方签名版本，为保护设备安全已禁止连接服务器")
-        }
+        // 🛠️ 物理阉割：直接放行
     }
 
     @Suppress("DEPRECATION")
