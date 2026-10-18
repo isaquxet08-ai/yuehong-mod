@@ -1100,6 +1100,13 @@ internal class StarterViewModel(
     }
 
     private fun startProcess() {
+        if (android.os.Build.VERSION.SDK_INT < 30) {
+            updateStep(0, StepStatus.COMPLETED, "强制跳过")
+            updateStep(1, StepStatus.COMPLETED, "强制开启")
+            startAdbSteps()
+            return
+        }
+
         if (isRoot) {
             startRoot()
         } else {
