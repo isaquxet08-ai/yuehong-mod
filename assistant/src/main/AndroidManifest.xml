@@ -6,7 +6,6 @@
     <application>
         <activity
             android:name=".ghostlock.GhostLockActivity"
-            android:exported="true"
             android:enableOnBackInvokedCallback="true"
             android:exported="false"
             android:label="@string/ghostlock_app_name"
