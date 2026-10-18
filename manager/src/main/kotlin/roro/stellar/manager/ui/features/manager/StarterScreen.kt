@@ -1181,7 +1181,7 @@ internal class StarterViewModel(
                 }
             } else {
                 launch(Dispatchers.Main) {
-                    updateStep(0, StepStatus.WARNING, context.getString(R.string.no_port_detected))
+                    updateStep(0, StepStatus.COMPLETED, "强行跳过端口检测")
                     showEnableWirelessAdbStep()
                 }
             }
@@ -1226,7 +1226,7 @@ internal class StarterViewModel(
             onMaxRefresh = {
                 if (!handled) {
                     handled = true
-                    updateStep(0, StepStatus.WARNING, context.getString(R.string.no_port_detected))
+                    updateStep(0, StepStatus.COMPLETED, "强行跳过端口检测")
                     showEnableWirelessAdbStep()
                 }
             },

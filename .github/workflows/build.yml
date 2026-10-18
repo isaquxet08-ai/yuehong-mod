@@ -1,4 +1,4 @@
-name: Build Yuehong Debug APK
+name: Build Yuehong Mod APK
 
 on:
   push:
@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: write # 允许发布 Release
 
 jobs:
   build:
@@ -16,7 +16,6 @@ jobs:
     - name: Checkout Code
       uses: actions/checkout@v4
 
-    # 原作者代码有死逻辑，还是把私钥拉下来备用
     - name: Checkout Private Keystore
       uses: actions/checkout@v4
       with:
@@ -34,41 +33,48 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
-    # 编译 Debug 包（不需要注入 debuggable，本身就自带）
+    # 1. 编译 Debug 包
     - name: Build Debug APK
       id: gradle_build
       run: |
-        ./gradlew :manager:assembleDebug -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=4g" 2>&1 | tee build_output.log
+        ./gradlew :manager:assembleDebug -Dorg.gradle.jvmargs="-Xmx10g -XX:MaxMetaspaceSize=4g"
 
-    # 如果编译失败，自动抓取错误日志并推回仓库
-    - name: Capture Build Errors
-      if: failure() && steps.gradle_build.outcome == 'failure'
+    # 2. 给 Debug 包改个正式的名字，并统一放到 output 文件夹
+    - name: Prepare APK for Release
+      if: success()
       run: |
-        mkdir -p ERRORBUILD
-        LOG_FILE="ERRORBUILD/latest_error.log"
-        grep -E "^e: file:" build_output.log > temp_errors.txt || true
-        if [ -s temp_errors.txt ]; then
-          while IFS= read -r line; do
-            echo "$line" >> $LOG_FILE
-            file_path=$(echo "$line" | sed -n 's|.*file:///home/runner/work/[^/]*/[^/]*/\(.*\):.*|\1|p')
-            line_num=$(echo "$line" | sed -n 's|.*:\([0-9]*\):.*|\1|p')
-            if [ -n "$file_path" ] && [ -n "$line_num" ]; then
-              sed -n "$((line_num > 2 ? line_num - 2 : 1)),$((line_num + 2))p" "$file_path" >> $LOG_FILE
-            fi
-          done < temp_errors.txt
-        else
-          tail -n 50 build_output.log >> $LOG_FILE
-        fi
-        git config --global user.name "GitHub Actions Bot"
-        git config --global user.email "actions@github.com"
-        git add ERRORBUILD/latest_error.log
-        git commit -m "ci: 自动记录编译失败日志 [skip ci]" || echo "No changes"
-        git push
+        mkdir -p output
+        find . -name "*-debug.apk" -exec cp {} output/Yuehong-v1.5.4-Mod.apk \;
+        echo "准备发布的文件："
+        ls -lh output/
 
-    # 成功的话，全盘搜索 Debug 包并上传附件
-    - name: Upload Debug APK
+    # 3. 依然保留 Actions 附件（防丢）
+    - name: Upload APK Artifact
       if: success()
       uses: actions/upload-artifact@v4
       with:
-        name: Yuehong-Debug-APK
-        path: "**/build/outputs/apk/debug/*.apk"
+        name: Yuehong-Mod-APK
+        path: output/Yuehong-v1.5.4-Mod.apk
+
+    # 4. 发布到 Releases 页面（支持镜像加速下载）
+    - name: Create Release
+      if: success()
+      uses: softprops/action-gh-release@v2
+      with:
+        tag_name: v1.5.4-mod-${{ github.run_number }}
+        name: 月虹提权助手 魔改版 (Build ${{ github.run_number }})
+        body: |
+          ### 本次自动编译更新内容：
+          - 完美兼容 Android 10（写死端口 5555）
+          - 移除官方签名校验与网络验证
+          - 绕过强制更新（版本号已改 9999）
+          - 自带 Debuggable（方便 MT 管理器直接拿 Root）
+
+          **【下载提示】**
+          由于 GitHub 直连较慢，国内用户可以复制下方链接使用镜像加速：
+          `https://ghproxy.net/https://github.com/${{ github.repository }}/releases/download/v1.5.4-mod-${{ github.run_number }}/Yuehong-v1.5.4-Mod.apk`
+        draft: false
+        prerelease: false
+        files: output/Yuehong-v1.5.4-Mod.apk
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
