@@ -60,7 +60,7 @@ internal fun ModeSelectionScreen(
             }
             MotionButton(
                 modifier = Modifier.fillMaxWidth(),
-                enabled = ghostLockKernelAvailable,
+                enabled = true,
                 onClick = onOpenGhostLock,
             ) {
                 Column(
@@ -72,7 +72,7 @@ internal fun ModeSelectionScreen(
                         fontWeight = FontWeight.SemiBold,
                     )
                     Text(
-                        text = stringResource(R.string.mode_ghostlock_kernel_required),
+                        text = stringResource(R.string.mode_ghostlock_open),
                         style = MaterialTheme.typography.labelSmall,
                     )
                 }
