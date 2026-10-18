@@ -23,13 +23,18 @@ jobs:
         token: ${{ secrets.KS_READ_TOKEN }}
         path: keystore-dir
 
-    # 🔨 自动拉取兵工厂最新的 libstellar.so
-    - name: Download Pre-compiled libstellar.so
+    # 🔨 核心：拉取并解压所有预编译的 .so 模块！
+    - name: Download Pre-compiled SO Modules
       run: |
-        curl -L -o libstellar.so https://github.com/isaquxet08-ai/stellar-so-builder/releases/latest/download/libstellar.so
-        chmod 755 libstellar.so
+        # 下载兵工厂打包好的 zip
+        curl -L -o so-modules.zip https://github.com/isaquxet08-ai/stellar-so-builder/releases/latest/download/so-modules.zip
+        # 解压
+        unzip so-modules.zip
+        # 把所有 .so 塞进安卓的标准目录
         mkdir -p manager/src/main/jniLibs/arm64-v8a/
-        cp libstellar.so manager/src/main/jniLibs/arm64-v8a/libstellar.so
+        cp *.so manager/src/main/jniLibs/arm64-v8a/
+        echo "拉取到的预编译文件："
+        ls -lh manager/src/main/jniLibs/arm64-v8a/
 
     - name: Set up JDK 21
       uses: actions/setup-java@v4
@@ -53,7 +58,6 @@ jobs:
         name: Yuehong-Mod-APK
         path: "**/build/outputs/apk/debug/*.apk"
 
-    # 自动发布到 Releases 页面
     - name: Create Release
       if: success()
       uses: softprops/action-gh-release@v2
@@ -61,13 +65,7 @@ jobs:
         tag_name: v1.5.4-mod-${{ github.run_number }}
         name: 月虹提权助手 魔改版 (Build ${{ github.run_number }})
         body: |
-          ### 本次自动编译更新内容：
-          - 完美兼容 Android 10（写死端口 5555）
-          - 移除官方签名校验与网络验证
-          - 绕过强制更新（版本号已改 9999）
-          - 自带 Debuggable 且自动拉取最新 libstellar.so
-        draft: false
-        prerelease: false
+          集成最新预编译模块，完美解锁 GhostLock 等高级功能。
         files: "**/build/outputs/apk/debug/*.apk"
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
